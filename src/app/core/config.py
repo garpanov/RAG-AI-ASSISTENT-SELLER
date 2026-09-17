@@ -1,6 +1,7 @@
 """Environment-based application settings."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,6 +17,16 @@ class Settings(BaseSettings):
     )
 
     database_url: str
+    rabbitmq_url: str = "amqp://guest:guest@localhost/"
+    knowledge_queue_name: str = "knowledge.documents.index"
+
+    embedding_provider: str = "qwen3"
+    embedding_model_name: str = "Qwen/Qwen3-Embedding-0.6B"
+    embedding_dimensions: Literal[384] = 384
+    embedding_batch_size: int = 16
+
+    knowledge_chunk_size: int = 1200
+    knowledge_chunk_overlap: int = 200
 
 
 @lru_cache

@@ -9,6 +9,7 @@ from app.models.entities import (
     HandoffStatus,
     KnowledgeChunk,
     KnowledgeDocument,
+    KnowledgeDocumentStatus,
     Message,
     MessageAuthor,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "HandoffStatus",
     "KnowledgeChunk",
     "KnowledgeDocument",
+    "KnowledgeDocumentStatus",
     "Message",
     "MessageAuthor",
 ]

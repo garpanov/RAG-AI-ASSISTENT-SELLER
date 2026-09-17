@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "aio-pika>=9.5.7",
     "alembic>=1.20.0",
     "fastapi>=0.141.1",
     "pgvector>=0.5.0",
@@ -12,5 +13,25 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "sentence-transformers>=6.0.1",
     "sqlalchemy[asyncio]>=2.0.53",
+    "torch>=2.14.0",
     "uvicorn[standard]>=0.53.0",
 ]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.18.2",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "ruff>=0.13.2",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

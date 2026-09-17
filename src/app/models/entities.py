@@ -57,6 +57,13 @@ class ApiKeyRole(StrEnum):
     ADMIN = "admin"
 
 
+class KnowledgeDocumentStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    READY = "ready"
+    FAILED = "failed"
+
+
 def enum_values(enum_class: type[StrEnum]) -> list[str]:
     """Store enum values instead of Python member names."""
 
@@ -146,6 +153,21 @@ class KnowledgeDocument(TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     source: Mapped[str | None] = mapped_column(String(2048))
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[KnowledgeDocumentStatus] = mapped_column(
+        Enum(
+            KnowledgeDocumentStatus,
+            values_callable=enum_values,
+            name="knowledge_document_status",
+            native_enum=False,
+            create_constraint=True,
+            length=20,
+        ),
+        default=KnowledgeDocumentStatus.PENDING,
+        server_default=KnowledgeDocumentStatus.PENDING.value,
+        nullable=False,
+        index=True,
+    )
+    indexing_error: Mapped[str | None] = mapped_column(Text)
 
     chunks: Mapped[list[KnowledgeChunk]] = relationship(
         back_populates="document",
