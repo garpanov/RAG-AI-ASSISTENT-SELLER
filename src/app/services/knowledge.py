@@ -109,6 +109,32 @@ class KnowledgeDocumentService:
         )
         return [DocumentListEntry(*row) for row in rows], total
 
+    async def update_document(
+        self, *, number_document: str, content: str
+    ) -> KnowledgeDocument:
+        document = await self._repository.update_document(
+            number_document=number_document,
+            content=content,
+        )
+        if document is None:
+            raise KnowledgeDocumentNotFoundError
+        await self._session.commit()
+        try:
+            await self._publisher.publish(document.id)
+        except Exception as exc:
+            failed_document = await self._repository.get_document_for_update(
+                document.id
+            )
+            if failed_document is not None:
+                await self._repository.set_status(
+                    failed_document,
+                    KnowledgeDocumentStatus.FAILED,
+                    error="Could not enqueue document for indexing",
+                )
+                await self._session.commit()
+            raise KnowledgeQueueUnavailableError from exc
+        return document
+
     async def delete_document(self, number_document: str) -> None:
         if not await self._repository.delete_document(number_document):
             raise KnowledgeDocumentNotFoundError
@@ -133,6 +159,7 @@ class KnowledgeIndexingService:
         document = await self._repository.get_document_for_update(document_id)
         if document is None:
             return
+        indexed_content = document.content
         await self._repository.set_status(
             document, KnowledgeDocumentStatus.PROCESSING
         )
@@ -154,6 +181,8 @@ class KnowledgeIndexingService:
             document = await self._repository.get_document_for_update(document_id)
             if document is None:
                 return
+            if document.content != indexed_content:
+                return
             await self._repository.replace_chunks(
                 document,
                 [
@@ -165,7 +194,7 @@ class KnowledgeIndexingService:
         except Exception as exc:
             await self._session.rollback()
             document = await self._repository.get_document_for_update(document_id)
-            if document is not None:
+            if document is not None and document.content == indexed_content:
                 await self._repository.set_status(
                     document,
                     KnowledgeDocumentStatus.FAILED,
