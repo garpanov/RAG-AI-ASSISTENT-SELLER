@@ -1,5 +1,6 @@
 """RabbitMQ transport for knowledge indexing jobs."""
 
+import json
 from typing import Protocol
 from uuid import UUID
 
@@ -8,7 +9,7 @@ from aio_pika.abc import AbstractChannel, AbstractRobustConnection
 
 
 class KnowledgeJobPublisher(Protocol):
-    async def publish(self, document_id: UUID) -> None: ...
+    async def publish(self, document_id: UUID, revision: int) -> None: ...
 
 
 class RabbitMQKnowledgeJobs:
@@ -26,14 +27,16 @@ class RabbitMQKnowledgeJobs:
         await channel.declare_queue(self.queue_name, durable=True)
         self._channel = channel
 
-    async def publish(self, document_id: UUID) -> None:
+    async def publish(self, document_id: UUID, revision: int) -> None:
         await self.connect()
         if self._channel is None:
             raise RuntimeError("RabbitMQ channel is not available")
         message = aio_pika.Message(
-            body=str(document_id).encode(),
+            body=json.dumps(
+                {"document_id": str(document_id), "revision": revision}
+            ).encode(),
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-            content_type="text/plain",
+            content_type="application/json",
         )
         await self._channel.default_exchange.publish(
             message, routing_key=self.queue_name

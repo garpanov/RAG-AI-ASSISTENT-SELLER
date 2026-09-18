@@ -1,6 +1,7 @@
 """RabbitMQ consumer that chunks and embeds knowledge documents."""
 
 import asyncio
+import json
 from uuid import UUID
 
 import aio_pika
@@ -31,7 +32,9 @@ async def run() -> None:
 
         async def process(message: AbstractIncomingMessage) -> None:
             async with message.process(requeue=False):
-                document_id = UUID(message.body.decode())
+                payload = json.loads(message.body)
+                document_id = UUID(payload["document_id"])
+                revision = int(payload["revision"])
                 async with async_session_factory() as session:
                     service = KnowledgeIndexingService(
                         session=session,
@@ -39,7 +42,7 @@ async def run() -> None:
                         chunker=chunker,
                         embedding_provider=embedding_provider,
                     )
-                    await service.index_document(document_id)
+                    await service.index_document(document_id, revision)
 
         await queue.consume(process)
         await asyncio.Future()

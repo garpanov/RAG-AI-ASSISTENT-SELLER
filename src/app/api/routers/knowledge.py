@@ -10,6 +10,7 @@ from app.api.schemas import (
     KnowledgeDocumentCreated,
     KnowledgeDocumentList,
     KnowledgeDocumentListItem,
+    KnowledgeDocumentUpdate,
 )
 from app.services.knowledge import (
     KnowledgeDocumentAlreadyExistsError,
@@ -74,6 +75,35 @@ async def list_documents(
         ],
         total=total,
     )
+
+
+@router.patch(
+    "/documents",
+    response_model=KnowledgeDocumentCreated,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def update_document(
+    payload: KnowledgeDocumentUpdate,
+    service: Annotated[
+        KnowledgeDocumentService, Depends(get_knowledge_document_service)
+    ],
+) -> KnowledgeDocumentCreated:
+    try:
+        document = await service.update_document(
+            number_document=payload.number_document,
+            content=payload.content,
+        )
+    except KnowledgeDocumentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Knowledge document not found",
+        ) from exc
+    except KnowledgeQueueUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document was updated, but indexing could not be queued",
+        ) from exc
+    return KnowledgeDocumentCreated.model_validate(document)
 
 
 @router.delete(

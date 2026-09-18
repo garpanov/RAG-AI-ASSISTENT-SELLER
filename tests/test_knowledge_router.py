@@ -64,3 +64,45 @@ def test_create_document_returns_conflict_for_duplicate_number() -> None:
     assert response.json() == {
         "detail": "Knowledge document with this number already exists"
     }
+
+
+def test_update_document_returns_accepted() -> None:
+    document = {
+        "id": "6dd5d0f1-5632-477e-a203-d9ed72b0d176",
+        "number_document": "DOC-001",
+        "status": "pending",
+        "created_at": "2026-09-18T10:00:00Z",
+    }
+    service = AsyncMock(spec=KnowledgeDocumentService)
+    service.update_document.return_value = document
+
+    response = create_test_client(service).patch(
+        "/v1/admin/knowledge/documents",
+        json={
+            "number_document": " DOC-001 ",
+            "content": "New returns policy",
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.json() == document
+    service.update_document.assert_awaited_once_with(
+        number_document="DOC-001",
+        content="New returns policy",
+    )
+
+
+def test_update_document_returns_not_found() -> None:
+    service = AsyncMock(spec=KnowledgeDocumentService)
+    service.update_document.side_effect = KnowledgeDocumentNotFoundError
+
+    response = create_test_client(service).patch(
+        "/v1/admin/knowledge/documents",
+        json={
+            "number_document": "DOC-404",
+            "content": "New returns policy",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Knowledge document not found"}

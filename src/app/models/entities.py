@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -154,6 +155,9 @@ class KnowledgeDocument(TimestampMixin, Base):
         String(500), nullable=False, unique=True
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    revision: Mapped[int] = mapped_column(
+        BigInteger, default=1, server_default="1", nullable=False
+    )
     status: Mapped[KnowledgeDocumentStatus] = mapped_column(
         Enum(
             KnowledgeDocumentStatus,

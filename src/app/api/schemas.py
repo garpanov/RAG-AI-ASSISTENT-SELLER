@@ -21,6 +21,10 @@ class KnowledgeDocumentCreate(BaseModel):
         return value
 
 
+class KnowledgeDocumentUpdate(KnowledgeDocumentCreate):
+    pass
+
+
 class KnowledgeDocumentCreated(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

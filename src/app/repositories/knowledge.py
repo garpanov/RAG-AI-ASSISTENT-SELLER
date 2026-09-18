@@ -28,6 +28,30 @@ class KnowledgeRepository:
         )
         return document_id is not None
 
+    async def update_document(
+        self, *, number_document: str, content: str
+    ) -> KnowledgeDocument | None:
+        result = await self._session.execute(
+            select(KnowledgeDocument)
+            .where(KnowledgeDocument.number_document == number_document)
+            .with_for_update()
+        )
+        document = result.scalar_one_or_none()
+        if document is None:
+            return None
+
+        await self._session.execute(
+            delete(KnowledgeChunk).where(
+                KnowledgeChunk.document_id == document.id
+            )
+        )
+        document.content = content
+        document.revision += 1
+        document.status = KnowledgeDocumentStatus.PENDING
+        document.indexing_error = None
+        await self._session.flush()
+        return document
+
     async def list_documents(
         self, *, limit: int, offset: int
     ) -> tuple[list[tuple[KnowledgeDocument, int]], int]:
@@ -60,6 +84,7 @@ class KnowledgeRepository:
         result = await self._session.execute(
             select(KnowledgeDocument)
             .where(KnowledgeDocument.id == document_id)
+            .execution_options(populate_existing=True)
             .with_for_update()
         )
         return result.scalar_one_or_none()
