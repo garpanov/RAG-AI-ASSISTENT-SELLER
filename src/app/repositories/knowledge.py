@@ -13,11 +13,9 @@ class KnowledgeRepository:
         self._session = session
 
     async def create_document(
-        self, *, number_document: str, content: str, source: str | None
+        self, *, number_document: str, content: str
     ) -> KnowledgeDocument:
-        document = KnowledgeDocument(
-            number_document=number_document, content=content, source=source
-        )
+        document = KnowledgeDocument(number_document=number_document, content=content)
         self._session.add(document)
         await self._session.flush()
         return document

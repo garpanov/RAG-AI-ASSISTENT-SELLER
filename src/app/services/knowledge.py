@@ -73,13 +73,13 @@ class KnowledgeDocumentService:
         self._publisher = publisher
 
     async def create_document(
-        self, *, number_document: str, content: str, source: str | None
+        self, *, number_document: str, content: str
     ) -> KnowledgeDocument:
         if await self._repository.document_exists(number_document):
             raise KnowledgeDocumentAlreadyExistsError
         try:
             document = await self._repository.create_document(
-                number_document=number_document, content=content, source=source
+                number_document=number_document, content=content
             )
         except IntegrityError as exc:
             await self._session.rollback()

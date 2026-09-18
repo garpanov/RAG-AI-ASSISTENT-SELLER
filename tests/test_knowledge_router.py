@@ -57,7 +57,6 @@ def test_create_document_returns_conflict_for_duplicate_number() -> None:
         json={
             "number_document": "DOC-001",
             "content": "Returns policy",
-            "source": None,
         },
     )
 

@@ -79,7 +79,6 @@ async def test_create_document_raises_when_number_already_exists() -> None:
         await service.create_document(
             number_document="DOC-001",
             content="Returns policy",
-            source=None,
         )
 
     repository.create_document.assert_not_awaited()
