@@ -153,7 +153,6 @@ class KnowledgeDocument(TimestampMixin, Base):
     number_document: Mapped[str] = mapped_column(
         String(500), nullable=False, unique=True
     )
-    source: Mapped[str | None] = mapped_column(String(2048))
     content: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[KnowledgeDocumentStatus] = mapped_column(
         Enum(

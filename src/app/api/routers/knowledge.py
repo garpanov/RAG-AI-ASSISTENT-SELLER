@@ -36,7 +36,6 @@ async def create_document(
         document = await service.create_document(
             number_document=payload.number_document,
             content=payload.content,
-            source=payload.source,
         )
     except KnowledgeDocumentAlreadyExistsError as exc:
         raise HTTPException(
@@ -65,7 +64,6 @@ async def list_documents(
             KnowledgeDocumentListItem(
                 id=entry.document.id,
                 number_document=entry.document.number_document,
-                source=entry.document.source,
                 status=entry.document.status,
                 created_at=entry.document.created_at,
                 updated_at=entry.document.updated_at,

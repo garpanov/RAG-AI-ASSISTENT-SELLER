@@ -11,7 +11,6 @@ from app.models import KnowledgeDocumentStatus
 class KnowledgeDocumentCreate(BaseModel):
     number_document: str = Field(min_length=1, max_length=500)
     content: str = Field(min_length=1)
-    source: str | None = Field(default=None, max_length=2048)
 
     @field_validator("number_document")
     @classmethod
@@ -27,7 +26,6 @@ class KnowledgeDocumentCreated(BaseModel):
 
     id: UUID
     number_document: str
-    source: str | None
     status: KnowledgeDocumentStatus
     created_at: datetime
 
