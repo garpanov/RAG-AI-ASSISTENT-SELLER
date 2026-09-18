@@ -16,6 +16,10 @@ class KnowledgeQueueUnavailableError(RuntimeError):
     pass
 
 
+class KnowledgeDocumentNotFoundError(RuntimeError):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class DocumentListEntry:
     document: KnowledgeDocument
@@ -93,6 +97,11 @@ class KnowledgeDocumentService:
             limit=limit, offset=offset
         )
         return [DocumentListEntry(*row) for row in rows], total
+
+    async def delete_document(self, document_id: UUID) -> None:
+        if not await self._repository.delete_document(document_id):
+            raise KnowledgeDocumentNotFoundError
+        await self._session.commit()
 
 
 class KnowledgeIndexingService:

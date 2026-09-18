@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import KnowledgeDocument, KnowledgeDocumentStatus
 from app.providers.embeddings import EmbeddingProvider
 from app.repositories.knowledge import KnowledgeRepository
-from app.services.knowledge import KnowledgeIndexingService, TextChunker
+from app.services.knowledge import (
+    KnowledgeDocumentNotFoundError,
+    KnowledgeDocumentService,
+    KnowledgeIndexingService,
+    TextChunker,
+)
 
 
 class FakeEmbeddingProvider:
@@ -18,6 +23,43 @@ class FakeEmbeddingProvider:
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return [[1.0, 0.0, 0.0] for _ in texts]
+
+
+@pytest.mark.asyncio
+async def test_delete_document_commits() -> None:
+    document_id = uuid4()
+    repository = AsyncMock(spec=KnowledgeRepository)
+    repository.delete_document.return_value = True
+    session = AsyncMock(spec=AsyncSession)
+    publisher = AsyncMock()
+    service = KnowledgeDocumentService(
+        session=cast(AsyncSession, session),
+        repository=cast(KnowledgeRepository, repository),
+        publisher=publisher,
+    )
+
+    await service.delete_document(document_id)
+
+    repository.delete_document.assert_awaited_once_with(document_id)
+    session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_document_raises_when_document_does_not_exist() -> None:
+    repository = AsyncMock(spec=KnowledgeRepository)
+    repository.delete_document.return_value = False
+    session = AsyncMock(spec=AsyncSession)
+    publisher = AsyncMock()
+    service = KnowledgeDocumentService(
+        session=cast(AsyncSession, session),
+        repository=cast(KnowledgeRepository, repository),
+        publisher=publisher,
+    )
+
+    with pytest.raises(KnowledgeDocumentNotFoundError):
+        await service.delete_document(uuid4())
+
+    session.commit.assert_not_awaited()
 
 
 def test_chunker_splits_content_with_overlap() -> None:
