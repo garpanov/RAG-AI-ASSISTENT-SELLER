@@ -1,9 +1,8 @@
 """Admin knowledge document endpoints."""
 
 from typing import Annotated
-from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 
 from app.api.dependencies import get_knowledge_document_service
 from app.api.schemas import (
@@ -13,6 +12,7 @@ from app.api.schemas import (
     KnowledgeDocumentListItem,
 )
 from app.services.knowledge import (
+    KnowledgeDocumentAlreadyExistsError,
     KnowledgeDocumentNotFoundError,
     KnowledgeDocumentService,
     KnowledgeQueueUnavailableError,
@@ -34,10 +34,15 @@ async def create_document(
 ) -> KnowledgeDocumentCreated:
     try:
         document = await service.create_document(
-            title=payload.title,
+            number_document=payload.number_document,
             content=payload.content,
             source=payload.source,
         )
+    except KnowledgeDocumentAlreadyExistsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Knowledge document with this number already exists",
+        ) from exc
     except KnowledgeQueueUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -59,7 +64,7 @@ async def list_documents(
         items=[
             KnowledgeDocumentListItem(
                 id=entry.document.id,
-                title=entry.document.title,
+                number_document=entry.document.number_document,
                 source=entry.document.source,
                 status=entry.document.status,
                 created_at=entry.document.created_at,
@@ -74,17 +79,17 @@ async def list_documents(
 
 
 @router.delete(
-    "/documents/{document_id}",
+    "/documents/{number_document}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_document(
-    document_id: UUID,
+    number_document: Annotated[str, Path(min_length=1, max_length=500)],
     service: Annotated[
         KnowledgeDocumentService, Depends(get_knowledge_document_service)
     ],
 ) -> Response:
     try:
-        await service.delete_document(document_id)
+        await service.delete_document(number_document)
     except KnowledgeDocumentNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
