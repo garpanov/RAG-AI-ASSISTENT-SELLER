@@ -2,8 +2,10 @@
 
 import re
 from dataclasses import dataclass
+from functools import partial
 from uuid import UUID
 
+from anyio import to_thread
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +13,7 @@ from app.messaging.knowledge import KnowledgeJobPublisher
 from app.models import KnowledgeDocument, KnowledgeDocumentStatus
 from app.providers.embeddings import EmbeddingProvider
 from app.repositories.knowledge import KnowledgeRepository
+from app.services.document_text import DocumentTextExtractor
 
 
 class KnowledgeQueueUnavailableError(RuntimeError):
@@ -22,6 +25,10 @@ class KnowledgeDocumentNotFoundError(RuntimeError):
 
 
 class KnowledgeDocumentAlreadyExistsError(RuntimeError):
+    pass
+
+
+class InvalidKnowledgeDocumentNumberError(ValueError):
     pass
 
 
@@ -67,10 +74,26 @@ class KnowledgeDocumentService:
         session: AsyncSession,
         repository: KnowledgeRepository,
         publisher: KnowledgeJobPublisher,
+        file_text_extractor: DocumentTextExtractor | None = None,
     ) -> None:
         self._session = session
         self._repository = repository
         self._publisher = publisher
+        self._file_text_extractor = file_text_extractor or DocumentTextExtractor()
+
+    async def create_document_from_file(
+        self, *, number_document: str, filename: str, data: bytes
+    ) -> KnowledgeDocument:
+        number_document = number_document.strip()
+        if not number_document:
+            raise InvalidKnowledgeDocumentNumberError
+        content = await to_thread.run_sync(
+            partial(self._file_text_extractor.extract, filename=filename, data=data)
+        )
+        return await self.create_document(
+            number_document=number_document,
+            content=content,
+        )
 
     async def create_document(
         self, *, number_document: str, content: str

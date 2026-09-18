@@ -2,7 +2,18 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Path,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 
 from app.api.dependencies import get_knowledge_document_service
 from app.api.schemas import (
@@ -12,7 +23,13 @@ from app.api.schemas import (
     KnowledgeDocumentListItem,
     KnowledgeDocumentUpdate,
 )
+from app.services.document_text import (
+    EmptyDocumentFileError,
+    InvalidDocumentFileError,
+    UnsupportedDocumentFileError,
+)
 from app.services.knowledge import (
+    InvalidKnowledgeDocumentNumberError,
     KnowledgeDocumentAlreadyExistsError,
     KnowledgeDocumentNotFoundError,
     KnowledgeDocumentService,
@@ -38,6 +55,57 @@ async def create_document(
             number_document=payload.number_document,
             content=payload.content,
         )
+    except KnowledgeDocumentAlreadyExistsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Knowledge document with this number already exists",
+        ) from exc
+    except KnowledgeQueueUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document was saved, but indexing could not be queued",
+        ) from exc
+    return KnowledgeDocumentCreated.model_validate(document)
+
+
+@router.post(
+    "/documents/upload",
+    response_model=KnowledgeDocumentCreated,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def upload_document(
+    number_document: Annotated[str, Form(min_length=1, max_length=500)],
+    file: Annotated[UploadFile, File()],
+    service: Annotated[
+        KnowledgeDocumentService, Depends(get_knowledge_document_service)
+    ],
+) -> KnowledgeDocumentCreated:
+    try:
+        document = await service.create_document_from_file(
+            number_document=number_document,
+            filename=file.filename or "",
+            data=await file.read(),
+        )
+    except InvalidKnowledgeDocumentNumberError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="number_document must not be blank",
+        ) from exc
+    except UnsupportedDocumentFileError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Supported file types are PDF, DOCX, and TXT",
+        ) from exc
+    except InvalidDocumentFileError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="The uploaded file is invalid or cannot be read",
+        ) from exc
+    except EmptyDocumentFileError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="The uploaded file contains no extractable text",
+        ) from exc
     except KnowledgeDocumentAlreadyExistsError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
