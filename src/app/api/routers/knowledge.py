@@ -1,8 +1,9 @@
 """Admin knowledge document endpoints."""
 
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.api.dependencies import get_knowledge_document_service
 from app.api.schemas import (
@@ -12,6 +13,7 @@ from app.api.schemas import (
     KnowledgeDocumentListItem,
 )
 from app.services.knowledge import (
+    KnowledgeDocumentNotFoundError,
     KnowledgeDocumentService,
     KnowledgeQueueUnavailableError,
 )
@@ -69,3 +71,23 @@ async def list_documents(
         ],
         total=total,
     )
+
+
+@router.delete(
+    "/documents/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_document(
+    document_id: UUID,
+    service: Annotated[
+        KnowledgeDocumentService, Depends(get_knowledge_document_service)
+    ],
+) -> Response:
+    try:
+        await service.delete_document(document_id)
+    except KnowledgeDocumentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Knowledge document not found",
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -38,6 +38,14 @@ class KnowledgeRepository:
         total = await self._session.scalar(select(func.count(KnowledgeDocument.id)))
         return [(document, count) for document, count in rows.all()], total or 0
 
+    async def delete_document(self, document_id: UUID) -> bool:
+        result = await self._session.execute(
+            delete(KnowledgeDocument)
+            .where(KnowledgeDocument.id == document_id)
+            .returning(KnowledgeDocument.id)
+        )
+        return result.scalar_one_or_none() is not None
+
     async def get_document_for_update(
         self, document_id: UUID
     ) -> KnowledgeDocument | None:
