@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.messaging.knowledge import KnowledgeJobPublisher
@@ -17,6 +18,10 @@ class KnowledgeQueueUnavailableError(RuntimeError):
 
 
 class KnowledgeDocumentNotFoundError(RuntimeError):
+    pass
+
+
+class KnowledgeDocumentAlreadyExistsError(RuntimeError):
     pass
 
 
@@ -68,11 +73,17 @@ class KnowledgeDocumentService:
         self._publisher = publisher
 
     async def create_document(
-        self, *, title: str, content: str, source: str | None
+        self, *, number_document: str, content: str, source: str | None
     ) -> KnowledgeDocument:
-        document = await self._repository.create_document(
-            title=title, content=content, source=source
-        )
+        if await self._repository.document_exists(number_document):
+            raise KnowledgeDocumentAlreadyExistsError
+        try:
+            document = await self._repository.create_document(
+                number_document=number_document, content=content, source=source
+            )
+        except IntegrityError as exc:
+            await self._session.rollback()
+            raise KnowledgeDocumentAlreadyExistsError from exc
         await self._session.commit()
         try:
             await self._publisher.publish(document.id)
@@ -98,8 +109,8 @@ class KnowledgeDocumentService:
         )
         return [DocumentListEntry(*row) for row in rows], total
 
-    async def delete_document(self, document_id: UUID) -> None:
-        if not await self._repository.delete_document(document_id):
+    async def delete_document(self, number_document: str) -> None:
+        if not await self._repository.delete_document(number_document):
             raise KnowledgeDocumentNotFoundError
         await self._session.commit()
 

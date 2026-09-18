@@ -13,12 +13,22 @@ class KnowledgeRepository:
         self._session = session
 
     async def create_document(
-        self, *, title: str, content: str, source: str | None
+        self, *, number_document: str, content: str, source: str | None
     ) -> KnowledgeDocument:
-        document = KnowledgeDocument(title=title, content=content, source=source)
+        document = KnowledgeDocument(
+            number_document=number_document, content=content, source=source
+        )
         self._session.add(document)
         await self._session.flush()
         return document
+
+    async def document_exists(self, number_document: str) -> bool:
+        document_id = await self._session.scalar(
+            select(KnowledgeDocument.id).where(
+                KnowledgeDocument.number_document == number_document
+            )
+        )
+        return document_id is not None
 
     async def list_documents(
         self, *, limit: int, offset: int
@@ -38,10 +48,10 @@ class KnowledgeRepository:
         total = await self._session.scalar(select(func.count(KnowledgeDocument.id)))
         return [(document, count) for document, count in rows.all()], total or 0
 
-    async def delete_document(self, document_id: UUID) -> bool:
+    async def delete_document(self, number_document: str) -> bool:
         result = await self._session.execute(
             delete(KnowledgeDocument)
-            .where(KnowledgeDocument.id == document_id)
+            .where(KnowledgeDocument.number_document == number_document)
             .returning(KnowledgeDocument.id)
         )
         return result.scalar_one_or_none() is not None

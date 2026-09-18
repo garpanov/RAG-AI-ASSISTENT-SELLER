@@ -150,7 +150,9 @@ class KnowledgeDocument(TimestampMixin, Base):
     id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid4
     )
-    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    number_document: Mapped[str] = mapped_column(
+        String(500), nullable=False, unique=True
+    )
     source: Mapped[str | None] = mapped_column(String(2048))
     content: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[KnowledgeDocumentStatus] = mapped_column(

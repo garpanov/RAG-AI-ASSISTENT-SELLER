@@ -9,6 +9,7 @@ from app.models import KnowledgeDocument, KnowledgeDocumentStatus
 from app.providers.embeddings import EmbeddingProvider
 from app.repositories.knowledge import KnowledgeRepository
 from app.services.knowledge import (
+    KnowledgeDocumentAlreadyExistsError,
     KnowledgeDocumentNotFoundError,
     KnowledgeDocumentService,
     KnowledgeIndexingService,
@@ -27,7 +28,7 @@ class FakeEmbeddingProvider:
 
 @pytest.mark.asyncio
 async def test_delete_document_commits() -> None:
-    document_id = uuid4()
+    number_document = "DOC-001"
     repository = AsyncMock(spec=KnowledgeRepository)
     repository.delete_document.return_value = True
     session = AsyncMock(spec=AsyncSession)
@@ -38,9 +39,9 @@ async def test_delete_document_commits() -> None:
         publisher=publisher,
     )
 
-    await service.delete_document(document_id)
+    await service.delete_document(number_document)
 
-    repository.delete_document.assert_awaited_once_with(document_id)
+    repository.delete_document.assert_awaited_once_with(number_document)
     session.commit.assert_awaited_once()
 
 
@@ -57,9 +58,33 @@ async def test_delete_document_raises_when_document_does_not_exist() -> None:
     )
 
     with pytest.raises(KnowledgeDocumentNotFoundError):
-        await service.delete_document(uuid4())
+        await service.delete_document("DOC-404")
 
     session.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_document_raises_when_number_already_exists() -> None:
+    repository = AsyncMock(spec=KnowledgeRepository)
+    repository.document_exists.return_value = True
+    session = AsyncMock(spec=AsyncSession)
+    publisher = AsyncMock()
+    service = KnowledgeDocumentService(
+        session=cast(AsyncSession, session),
+        repository=cast(KnowledgeRepository, repository),
+        publisher=publisher,
+    )
+
+    with pytest.raises(KnowledgeDocumentAlreadyExistsError):
+        await service.create_document(
+            number_document="DOC-001",
+            content="Returns policy",
+            source=None,
+        )
+
+    repository.create_document.assert_not_awaited()
+    session.commit.assert_not_awaited()
+    publisher.publish.assert_not_awaited()
 
 
 def test_chunker_splits_content_with_overlap() -> None:
@@ -76,7 +101,7 @@ def test_chunker_splits_content_with_overlap() -> None:
 async def test_index_document_embeds_and_replaces_chunks() -> None:
     document = KnowledgeDocument(
         id=uuid4(),
-        title="Returns",
+        number_document="Returns",
         content="Returns are accepted within thirty days.",
         status=KnowledgeDocumentStatus.PENDING,
     )
@@ -112,7 +137,7 @@ async def test_index_document_embeds_and_replaces_chunks() -> None:
 async def test_index_document_marks_failure() -> None:
     document = KnowledgeDocument(
         id=uuid4(),
-        title="Empty",
+        number_document="Empty",
         content="   ",
         status=KnowledgeDocumentStatus.PENDING,
     )
