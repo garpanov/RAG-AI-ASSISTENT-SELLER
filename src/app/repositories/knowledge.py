@@ -46,6 +46,7 @@ class KnowledgeRepository:
             )
         )
         document.content = content
+        document.revision += 1
         document.status = KnowledgeDocumentStatus.PENDING
         document.indexing_error = None
         await self._session.flush()
@@ -83,6 +84,7 @@ class KnowledgeRepository:
         result = await self._session.execute(
             select(KnowledgeDocument)
             .where(KnowledgeDocument.id == document_id)
+            .execution_options(populate_existing=True)
             .with_for_update()
         )
         return result.scalar_one_or_none()

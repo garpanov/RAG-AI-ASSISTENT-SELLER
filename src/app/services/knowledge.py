@@ -85,13 +85,17 @@ class KnowledgeDocumentService:
             await self._session.rollback()
             raise KnowledgeDocumentAlreadyExistsError from exc
         await self._session.commit()
+        published_revision = document.revision
         try:
-            await self._publisher.publish(document.id)
+            await self._publisher.publish(document.id, published_revision)
         except Exception as exc:
             failed_document = await self._repository.get_document_for_update(
                 document.id
             )
-            if failed_document is not None:
+            if (
+                failed_document is not None
+                and failed_document.revision == published_revision
+            ):
                 await self._repository.set_status(
                     failed_document,
                     KnowledgeDocumentStatus.FAILED,
@@ -119,13 +123,17 @@ class KnowledgeDocumentService:
         if document is None:
             raise KnowledgeDocumentNotFoundError
         await self._session.commit()
+        published_revision = document.revision
         try:
-            await self._publisher.publish(document.id)
+            await self._publisher.publish(document.id, published_revision)
         except Exception as exc:
             failed_document = await self._repository.get_document_for_update(
                 document.id
             )
-            if failed_document is not None:
+            if (
+                failed_document is not None
+                and failed_document.revision == published_revision
+            ):
                 await self._repository.set_status(
                     failed_document,
                     KnowledgeDocumentStatus.FAILED,
@@ -155,11 +163,10 @@ class KnowledgeIndexingService:
         self._chunker = chunker
         self._embedding_provider = embedding_provider
 
-    async def index_document(self, document_id: UUID) -> None:
+    async def index_document(self, document_id: UUID, revision: int) -> None:
         document = await self._repository.get_document_for_update(document_id)
-        if document is None:
+        if document is None or document.revision != revision:
             return
-        indexed_content = document.content
         await self._repository.set_status(
             document, KnowledgeDocumentStatus.PROCESSING
         )
@@ -179,9 +186,7 @@ class KnowledgeIndexingService:
                 raise ValueError("Embedding provider returned an invalid dimension")
 
             document = await self._repository.get_document_for_update(document_id)
-            if document is None:
-                return
-            if document.content != indexed_content:
+            if document is None or document.revision != revision:
                 return
             await self._repository.replace_chunks(
                 document,
@@ -194,7 +199,7 @@ class KnowledgeIndexingService:
         except Exception as exc:
             await self._session.rollback()
             document = await self._repository.get_document_for_update(document_id)
-            if document is not None and document.content == indexed_content:
+            if document is not None and document.revision == revision:
                 await self._repository.set_status(
                     document,
                     KnowledgeDocumentStatus.FAILED,
