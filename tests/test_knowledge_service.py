@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import KnowledgeDocument, KnowledgeDocumentStatus
 from app.providers.embeddings import EmbeddingProvider
 from app.repositories.knowledge import KnowledgeRepository
+from app.services.document_text import DocumentTextExtractor
 from app.services.knowledge import (
+    InvalidKnowledgeDocumentNumberError,
     KnowledgeDocumentAlreadyExistsError,
     KnowledgeDocumentNotFoundError,
     KnowledgeDocumentService,
@@ -85,6 +87,62 @@ async def test_create_document_raises_when_number_already_exists() -> None:
     repository.create_document.assert_not_awaited()
     session.commit.assert_not_awaited()
     publisher.publish.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_document_from_file_uses_existing_creation_flow() -> None:
+    document = KnowledgeDocument(
+        id=uuid4(),
+        number_document="DOC-001",
+        content="Returns policy",
+        revision=1,
+        status=KnowledgeDocumentStatus.PENDING,
+    )
+    repository = AsyncMock(spec=KnowledgeRepository)
+    repository.document_exists.return_value = False
+    repository.create_document.return_value = document
+    session = AsyncMock(spec=AsyncSession)
+    publisher = AsyncMock()
+    service = KnowledgeDocumentService(
+        session=cast(AsyncSession, session),
+        repository=cast(KnowledgeRepository, repository),
+        publisher=publisher,
+        file_text_extractor=DocumentTextExtractor(),
+    )
+
+    result = await service.create_document_from_file(
+        number_document=" DOC-001 ",
+        filename="policy.txt",
+        data=b"Returns policy",
+    )
+
+    assert result is document
+    repository.create_document.assert_awaited_once_with(
+        number_document="DOC-001",
+        content="Returns policy",
+    )
+    publisher.publish.assert_awaited_once_with(document.id, 1)
+
+
+@pytest.mark.asyncio
+async def test_create_document_from_file_rejects_blank_number() -> None:
+    repository = AsyncMock(spec=KnowledgeRepository)
+    session = AsyncMock(spec=AsyncSession)
+    publisher = AsyncMock()
+    service = KnowledgeDocumentService(
+        session=cast(AsyncSession, session),
+        repository=cast(KnowledgeRepository, repository),
+        publisher=publisher,
+    )
+
+    with pytest.raises(InvalidKnowledgeDocumentNumberError):
+        await service.create_document_from_file(
+            number_document="   ",
+            filename="policy.txt",
+            data=b"Returns policy",
+        )
+
+    repository.create_document.assert_not_awaited()
 
 
 @pytest.mark.asyncio

@@ -66,6 +66,49 @@ def test_create_document_returns_conflict_for_duplicate_number() -> None:
     }
 
 
+def test_upload_document_extracts_and_creates_document() -> None:
+    document = {
+        "id": "6dd5d0f1-5632-477e-a203-d9ed72b0d176",
+        "number_document": "DOC-001",
+        "status": "pending",
+        "created_at": "2026-09-18T10:00:00Z",
+    }
+    service = AsyncMock(spec=KnowledgeDocumentService)
+    service.create_document_from_file.return_value = document
+
+    response = create_test_client(service).post(
+        "/v1/admin/knowledge/documents/upload",
+        data={"number_document": " DOC-001 "},
+        files={"file": ("policy.txt", b"Returns policy", "text/plain")},
+    )
+
+    assert response.status_code == 202
+    assert response.json() == document
+    service.create_document_from_file.assert_awaited_once_with(
+        number_document=" DOC-001 ",
+        filename="policy.txt",
+        data=b"Returns policy",
+    )
+
+
+def test_upload_document_rejects_unsupported_file() -> None:
+    from app.services.document_text import UnsupportedDocumentFileError
+
+    service = AsyncMock(spec=KnowledgeDocumentService)
+    service.create_document_from_file.side_effect = UnsupportedDocumentFileError
+
+    response = create_test_client(service).post(
+        "/v1/admin/knowledge/documents/upload",
+        data={"number_document": "DOC-001"},
+        files={"file": ("policy.csv", b"Returns policy", "text/csv")},
+    )
+
+    assert response.status_code == 415
+    assert response.json() == {
+        "detail": "Supported file types are PDF, DOCX, and TXT"
+    }
+
+
 def test_update_document_returns_accepted() -> None:
     document = {
         "id": "6dd5d0f1-5632-477e-a203-d9ed72b0d176",
