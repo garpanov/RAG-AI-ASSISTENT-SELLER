@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Sequence
 from typing import Any, Literal, Protocol
@@ -143,7 +144,13 @@ class GeminiPlannerProvider:
             "x-goog-api-key": self._api_key,
         }
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(self._url, headers=headers, json=payload)
+            while True:
+                response = await client.post(
+                    self._url, headers=headers, json=payload
+                )
+                if response.status_code != 503:
+                    break
+                await asyncio.sleep(10)
             try:
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:

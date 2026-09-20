@@ -1,5 +1,6 @@
 """Switchable providers for final customer-support responses."""
 
+import asyncio
 import json
 from collections.abc import Sequence
 from typing import Any, Protocol
@@ -100,7 +101,13 @@ class GeminiResponseProvider:
             "x-goog-api-key": self._api_key,
         }
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(self._url, headers=headers, json=payload)
+            while True:
+                response = await client.post(
+                    self._url, headers=headers, json=payload
+                )
+                if response.status_code != 503:
+                    break
+                await asyncio.sleep(10)
             try:
                 response.raise_for_status()
             except httpx.HTTPStatusError as exc:

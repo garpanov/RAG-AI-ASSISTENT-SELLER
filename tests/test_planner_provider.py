@@ -8,6 +8,8 @@ from app.providers.planner import GeminiPlannerProvider, PlannerMessage
 
 
 class FakeResponse:
+    status_code = 200
+
     def raise_for_status(self) -> None:
         pass
 
@@ -104,3 +106,51 @@ async def test_gemini_planner_uses_structured_output(
     generation_config = FakeAsyncClient.last_payload["generationConfig"]
     assert generation_config["responseMimeType"] == "application/json"
     assert generation_config["responseJsonSchema"]["type"] == "object"
+
+
+@pytest.mark.asyncio
+async def test_gemini_planner_retries_503_after_ten_seconds(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    responses = [FakeResponseWithStatus(503), FakeResponseWithStatus(200)]
+    sleeps: list[float] = []
+
+    async def fake_post(
+        _self: object,
+        _url: str,
+        *,
+        headers: dict[str, str],
+        json: dict[str, Any],
+    ) -> FakeResponse:
+        del headers, json
+        return responses.pop(0)
+
+    async def fake_sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr(FakeAsyncClient, "post", fake_post)
+    monkeypatch.setattr(
+        "app.providers.planner.httpx.AsyncClient", FakeAsyncClient
+    )
+    monkeypatch.setattr("app.providers.planner.asyncio.sleep", fake_sleep)
+    provider = GeminiPlannerProvider(
+        base_url="https://generativelanguage.googleapis.com/v1beta",
+        api_key="gemini-key",
+        model_name="gemini-3.5-flash-lite",
+        timeout_seconds=12.0,
+    )
+
+    result = await provider.plan(
+        messages=[PlannerMessage(author="customer", content="Hello")],
+        previous_summary=None,
+        messages_to_summarize=[],
+    )
+
+    assert result.intent == "order_status"
+    assert sleeps == [10]
+    assert responses == []
+
+
+class FakeResponseWithStatus(FakeResponse):
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
