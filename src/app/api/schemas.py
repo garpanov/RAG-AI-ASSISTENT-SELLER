@@ -43,3 +43,20 @@ class KnowledgeDocumentListItem(KnowledgeDocumentCreated):
 class KnowledgeDocumentList(BaseModel):
     items: list[KnowledgeDocumentListItem]
     total: int
+
+
+class ConversationMessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=20_000)
+
+    @field_validator("content")
+    @classmethod
+    def strip_content(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("content must not be blank")
+        return value
+
+
+class ConversationMessageAccepted(BaseModel):
+    message_id: UUID
+    status: str = "processing"

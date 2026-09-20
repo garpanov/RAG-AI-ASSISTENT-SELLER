@@ -9,14 +9,14 @@ from aio_pika.abc import AbstractIncomingMessage
 
 from app.core.config import get_settings
 from app.database.session import async_session_factory
-from app.providers.embeddings import create_embedding_provider
+from app.providers.embeddings import EmbeddingProvider, create_embedding_provider
 from app.repositories.knowledge import KnowledgeRepository
 from app.services.knowledge import KnowledgeIndexingService, TextChunker
 
 
-async def run() -> None:
+async def run(embedding_provider: EmbeddingProvider | None = None) -> None:
     settings = get_settings()
-    embedding_provider = create_embedding_provider(settings)
+    embedding_provider = embedding_provider or create_embedding_provider(settings)
     chunker = TextChunker(
         chunk_size=settings.knowledge_chunk_size,
         overlap=settings.knowledge_chunk_overlap,
