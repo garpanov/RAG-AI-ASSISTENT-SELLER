@@ -2,22 +2,49 @@ services:
   api:
     build: .
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    env_file:
+      - .env
     environment: &app_environment
       DATABASE_URL: postgresql+psycopg://user:password@db:5432/mydatabase
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      PLANNER_PROVIDER: ${PLANNER_PROVIDER:-gemini}
+      PLANNER_BASE_URL: ${PLANNER_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
+      PLANNER_API_KEY: ${PLANNER_API_KEY:-}
+      PLANNER_MODEL_NAME: ${PLANNER_MODEL_NAME:-gemini-3.5-flash-lite}
+      RERANKER_PROVIDER: ${RERANKER_PROVIDER:-vector}
+      RERANKER_MODEL_NAME: ${RERANKER_MODEL_NAME:-Qwen/Qwen3-Reranker-0.6B}
+      ANSWER_PROVIDER: ${ANSWER_PROVIDER:-gemini}
+      ANSWER_BASE_URL: ${ANSWER_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
+      ANSWER_API_KEY: ${ANSWER_API_KEY:-}
+      ANSWER_MODEL_NAME: ${ANSWER_MODEL_NAME:-gemini-3.6-flash}
+      ORDERS_BASE_URL: ${ORDERS_BASE_URL:-http://company-service:8080}
+      ORDERS_API_KEY: ${ORDERS_API_KEY:-local-company-key}
+      COMPANY_WEBHOOK_URL: ${COMPANY_WEBHOOK_URL:-http://company-service:8080/webhooks/ai-support}
+      COMPANY_WEBHOOK_SECRET: ${COMPANY_WEBHOOK_SECRET:-local-webhook-secret}
     ports:
       - 8000:8000
     depends_on:
       - db
       - rabbitmq
 
-  knowledge-worker:
+  support-worker:
     build: .
-    command: ["python", "-m", "app.workers.knowledge"]
+    command: ["python", "-m", "app.workers.support"]
+    env_file:
+      - .env
     environment: *app_environment
     depends_on:
       - db
       - rabbitmq
+      - company-service
+
+  company-service:
+    build: ./company_service
+    environment:
+      ORDERS_API_KEY: ${ORDERS_API_KEY:-local-company-key}
+      WEBHOOK_SECRET: ${COMPANY_WEBHOOK_SECRET:-local-webhook-secret}
+    ports:
+      - 8080:8080
 
   db:
     image: pgvector/pgvector:pg17

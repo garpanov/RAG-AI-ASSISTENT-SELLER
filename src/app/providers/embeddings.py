@@ -25,6 +25,7 @@ class Qwen3EmbeddingProvider:
         self._dimensions = dimensions
         self._batch_size = batch_size
         self._model: SentenceTransformer | None = None
+        self._lock = asyncio.Lock()
 
     @property
     def dimensions(self) -> int:
@@ -50,7 +51,8 @@ class Qwen3EmbeddingProvider:
         return cast(list[list[float]], encoded.tolist())
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        return await asyncio.to_thread(self._embed_sync, texts)
+        async with self._lock:
+            return await asyncio.to_thread(self._embed_sync, texts)
 
 
 def create_embedding_provider(settings: Settings) -> EmbeddingProvider:

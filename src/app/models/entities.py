@@ -45,6 +45,13 @@ class MessageAuthor(StrEnum):
     MANAGER = "manager"
 
 
+class MessageProcessingStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class HandoffStatus(StrEnum):
     WAITING = "waiting"
     CLAIMED = "claimed"
@@ -102,6 +109,10 @@ class Conversation(TimestampMixin, Base):
         index=True,
     )
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    summary: Mapped[str | None] = mapped_column(Text)
+    summary_through_message_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True)
+    )
 
     messages: Mapped[list[Message]] = relationship(
         back_populates="conversation",
@@ -138,6 +149,16 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[float | None] = mapped_column(Float)
     source_references: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)
+    processing_status: Mapped[MessageProcessingStatus | None] = mapped_column(
+        Enum(
+            MessageProcessingStatus,
+            values_callable=enum_values,
+            name="message_processing_status",
+        ),
+        index=True,
+    )
+    planner_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    processing_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
